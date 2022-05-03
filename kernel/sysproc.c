@@ -128,3 +128,8 @@ sys_sysinfo(void)
   }
   return 0;
 }
+
+uint64
+sys_freemem(void) {
+  return kfreesize();
+}
