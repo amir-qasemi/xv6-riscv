@@ -80,7 +80,55 @@ sys_sleep(void)
 int
 sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
+  int numpages;
+  uint64 vas, buffva;
+
+  if (argaddr(0, &vas) < 0)
+    return -1;
+
+  if (argint(1, &numpages) < 0)
+    return -1;
+
+  if (argaddr(2, &buffva) < 0)
+    return -1;
+
+  if (numpages > PGSIZE * 8)
+  {
+    return -1;
+  }
+
+  unsigned char *resbitmap = kalloc();
+  if (resbitmap == 0)
+    panic("kalloc");
+  memset(resbitmap, 0, PGSIZE);
+  
+  int bitmapbytes = (numpages % 8) == 0 ? (numpages / 8) : (numpages / 8) + 1;
+  struct proc *p = myproc();
+  pagetable_t pt = p->pagetable;
+  for (int i = 0; i < numpages; i++)
+  {
+    pte_t *pte = walk(pt, ((uint64)vas + i * PGSIZE), 0);
+    if (pte == 0)
+      return 0;
+    if ((*pte & PTE_V) == 0)
+      return 0;
+    if ((*pte & PTE_U) == 0)
+      return 0;
+    unsigned int result;
+    if ((*pte & PTE_A) == 0)
+    {
+      result = 0;
+    }
+    else
+    {
+      result = 1;
+    }
+    resbitmap[PGSIZE - 1 - bitmapbytes + (i / 8)] |= (result << (i % 8));
+    *pte &= ~(PTE_A);
+  }
+
+  copyout(pt, buffva, (char *) &resbitmap[PGSIZE - bitmapbytes - 1], bitmapbytes);
+
   return 0;
 }
 #endif
@@ -89,7 +137,6 @@ uint64
 sys_kill(void)
 {
   int pid;
-
   if(argint(0, &pid) < 0)
     return -1;
   return kill(pid);
